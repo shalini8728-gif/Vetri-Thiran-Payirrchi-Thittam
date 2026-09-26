@@ -12,18 +12,13 @@ from app.config import settings
 def get_gemini_client():
     if not settings.gemini_api_key:
         raise RuntimeError(
-            "GEMINI_API_KEY is missing. "
-            "Please add your Gemini API key to the .env file."
+            "GEMINI_API_KEY is missing. Please add your Gemini API key to the .env file."
         )
 
     return genai.Client(api_key=settings.gemini_api_key)
 
 
-def _get_retry_seconds(error_text: str, default: int = 10) -> int:
-    """
-    Try to read Google's suggested retry delay from the error message.
-    """
-
+def _get_retry_seconds(error_text: str, default: int = 5) -> int:
     match = re.search(
         r"retry in ([0-9]+(?:\.[0-9]+)?)s",
         error_text,
@@ -32,7 +27,7 @@ def _get_retry_seconds(error_text: str, default: int = 10) -> int:
 
     if match:
         try:
-            return max(5, int(float(match.group(1))) + 2)
+            return max(3, int(float(match.group(1))) + 1)
         except ValueError:
             pass
 
@@ -49,14 +44,18 @@ def generate_text(
     client = get_gemini_client()
 
     config = types.GenerateContentConfig(
-        max_output_tokens=max_output_tokens
+        temperature=temperature,
+        max_output_tokens=max_output_tokens,
     )
 
-    max_attempts = 5
+    # Only retry temporary 503 errors.
+    # Do NOT repeatedly retry quota/429 errors.
+    max_attempts = 3
 
     for attempt in range(max_attempts):
 
         try:
+
             response = client.models.generate_content(
                 model=model,
                 contents=prompt,
@@ -76,63 +75,52 @@ def generate_text(
 
             error_text = str(error)
 
-            # -------------------------------------------------
-            # 503 - Gemini temporarily overloaded
-            # -------------------------------------------------
             is_503 = (
                 "503" in error_text
-                or "UNAVAILABLE" in error_text
+                or "UNAVAILABLE" in error_text.upper()
             )
 
-            # -------------------------------------------------
-            # 429 - Rate limit / quota
-            # -------------------------------------------------
             is_429 = (
                 "429" in error_text
-                or "RESOURCE_EXHAUSTED" in error_text
-                or "Quota exceeded" in error_text
+                or "RESOURCE_EXHAUSTED" in error_text.upper()
+                or "QUOTA" in error_text.upper()
             )
 
-            # -------------------------------------------------
-            # Retry temporary Gemini errors
-            # -------------------------------------------------
-            if is_503 or is_429:
+            # API quota problem
+            if is_429:
+
+                raise RuntimeError(
+                    "Gemini API quota has been reached. "
+                    "Please wait for the quota to reset or use a Gemini API project "
+                    "with available quota."
+                ) from error
+
+            # Temporary Gemini server problem
+            if is_503:
 
                 if attempt == max_attempts - 1:
 
-                    if is_429:
-                        raise RuntimeError(
-                            "Gemini request limit was reached. "
-                            "Please wait a little while and try again."
-                        ) from error
-
                     raise RuntimeError(
-                        "Gemini is temporarily experiencing high demand. "
+                        "Gemini is temporarily unavailable. "
                         "Please wait a few minutes and try again."
                     ) from error
 
-                if is_429:
-                    wait_seconds = _get_retry_seconds(
-                        error_text,
-                        default=15,
-                    )
-                else:
-                    # Increasing backoff for 503
-                    wait_seconds = 5 * (2 ** attempt)
+                wait_seconds = _get_retry_seconds(
+                    error_text,
+                    default=5,
+                )
 
                 print(
-                    f"Gemini temporarily unavailable "
-                    f"({ '429' if is_429 else '503' }). "
+                    f"Gemini temporarily unavailable (503). "
                     f"Retrying in {wait_seconds} seconds..."
                 )
 
                 time.sleep(wait_seconds)
-
                 continue
 
-            # -------------------------------------------------
-            # Other errors should not be retried
-            # -------------------------------------------------
-            raise
+            # Any other error
+            raise RuntimeError(
+                f"Gemini request failed: {error_text}"
+            ) from error
 
     raise RuntimeError("Gemini request failed.")

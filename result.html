@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>FitBuddy - Your Fitness Plan</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- Header -->
+    <header class="header">
+        <h1>💪 FitBuddy</h1>
+        <h2>Your Personalized Fitness Plan</h2>
+
+        {% if updated %}
+        <p>Your workout plan has been updated based on your feedback.</p>
+        {% else %}
+        <p>Your AI-generated 7-day fitness plan is ready.</p>
+        {% endif %}
+    </header>
+
+
+    <!-- Error Message -->
+    {% if error %}
+    <div class="error-box">
+        <strong>Error:</strong>
+        <p>{{ error }}</p>
+    </div>
+    {% endif %}
+
+
+    <!-- User Information -->
+    <section class="card">
+
+        <h2>👤 Your Details</h2>
+
+        <div class="user-details">
+
+            <p>
+                <strong>Name:</strong>
+                {{ user.name }}
+            </p>
+
+            <p>
+                <strong>User ID:</strong>
+                {{ user.user_id }}
+            </p>
+
+            <p>
+                <strong>Age:</strong>
+                {{ user.age }}
+            </p>
+
+            <p>
+                <strong>Weight:</strong>
+                {{ user.weight }} kg
+            </p>
+
+            <p>
+                <strong>Goal:</strong>
+                {{ user.goal | title }}
+            </p>
+
+            <p>
+                <strong>Intensity:</strong>
+                {{ user.intensity | title }}
+            </p>
+
+        </div>
+
+    </section>
+
+
+    <!-- Workout Plan -->
+    <section class="card">
+
+        <h2>📅 7-Day Workout Plan</h2>
+
+        <div class="workout-plan">
+
+            {% if workout_plan %}
+
+                {% for line in workout_plan.split('\n') %}
+
+                    {% if line.strip() %}
+                        <p>{{ line }}</p>
+                    {% endif %}
+
+                {% endfor %}
+
+            {% else %}
+
+                <p>
+                    No workout plan is available at the moment.
+                </p>
+
+            {% endif %}
+
+        </div>
+
+    </section>
+
+
+    <!-- Nutrition Tip -->
+    <section class="card">
+
+        <h2>🥗 Nutrition & Recovery Tip</h2>
+
+        <div class="nutrition-tip">
+
+            {% if nutrition_tip %}
+
+                <p>{{ nutrition_tip }}</p>
+
+            {% else %}
+
+                <p>
+                    Focus on balanced meals, hydration,
+                    adequate sleep and healthy recovery.
+                </p>
+
+            {% endif %}
+
+        </div>
+
+    </section>
+
+
+    <!-- Feedback -->
+    <section class="card">
+
+        <h2>💬 Improve Your Plan</h2>
+
+        <p>
+            Tell FitBuddy what you would like to change.
+        </p>
+
+        <form action="/submit-feedback" method="post">
+
+            <input
+                type="hidden"
+                name="user_id"
+                value="{{ user.user_id }}"
+            >
+
+            <div class="form-group">
+
+                <label for="feedback">
+                    Your Feedback
+                </label>
+
+                <textarea
+                    id="feedback"
+                    name="feedback"
+                    rows="5"
+                    placeholder="Example: Make Day 3 easier and add more flexibility exercises."
+                    required
+                ></textarea>
+
+            </div>
+
+            <button type="submit">
+                🔄 Update My Plan
+            </button>
+
+        </form>
+
+    </section>
+
+
+    <!-- Navigation -->
+    <section class="card navigation">
+
+        <a href="/" class="back-button">
+            ← Create Another Plan
+        </a>
+
+    </section>
+
+
+    <!-- Footer -->
+    <footer>
+
+        <p>
+            FitBuddy AI © 2026
+        </p>
+
+        <p>
+            AI-Powered Fitness Plan Generator
+        </p>
+
+    </footer>
+
+</div>
+
+</body>
+
+</html>
